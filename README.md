@@ -132,8 +132,8 @@ RunSync MyApp --src=\\my-server\MyApps --dst=C:\MyApps
 Example:
 ```json
 {
-  "AppsSrc":"\\\\my-server\\Level2Clients",
-  "AppsDst":"D:\\Level2\\Clients"
+  "AppsSrc":"\\\\my-server\\MyClients",
+  "AppsDst":"D:\\MyClients"
 }
 ```
 When user press *Save* button in parameters popup dialog it first trying to save

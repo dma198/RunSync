@@ -336,7 +336,7 @@ LRESULT CALLBACK MainWindow::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPA
             {
                 curApp = cur.first;
                 curOperation = cur.second;
-                if (curOperation == Operations::opNone)
+                if ((curOperation != Operations::opInstall) && (curOperation != Operations::opUpgrade))
                 {
                     Hide();
                 }

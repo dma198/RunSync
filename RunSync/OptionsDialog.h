@@ -2,7 +2,7 @@
 #include "AppConfig.h"
 #include "AppManager.h"
 
-#define WM_RUNSYNC_OPTIONS_UPDATE (WM_USER + 0x0001)
+#define WM_RunSync_OPTIONS_UPDATE (WM_USER + 0x0001)
 
 using namespace std;
 

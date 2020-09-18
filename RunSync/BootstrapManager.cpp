@@ -1,4 +1,7 @@
+#include <filesystem>
+
 #include "SystemUtils.h"
+#include "AppConfig.h"
 #include "BootstrapManager.h"
 
 using namespace RunSync;
@@ -9,7 +12,7 @@ bool BootstrapManager::SendCmdToRunningInstance(const wstring& cmd)
     auto pid = SystemUtils::GetRunningInstancePID();
     if (pid > 0)
     {        
-        HWND h = SystemUtils::GetMainWindow(pid);
+        HWND h = SystemUtils::GetMainWindow(pid,false);
         if (h > 0)
         {
             COPYDATASTRUCT data;
@@ -27,6 +30,8 @@ bool BootstrapManager::SendCmdToRunningInstance(const wstring& cmd)
 
     return pid > 0;
 }
+
+
 
 
 

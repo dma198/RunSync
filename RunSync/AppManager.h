@@ -5,8 +5,10 @@
 #include <string>
 #include <future>
 #include <filesystem>
+#include <chrono>
 
 using namespace std;
+using namespace chrono;
 
 namespace RunSync
 {
@@ -17,12 +19,21 @@ namespace RunSync
 
 	struct AppInfo
 	{
-		AppInfo() { AppName = FullPath = L""; RunStatus = AppRunStatuses::rstUndefined; VersionStatus = AppVersionStatuses::vstUndefined; };
+		AppInfo() 
+		{ 
+			AppName = FullPath = L""; 
+			RunStatus = AppRunStatuses::rstUndefined; 
+			VersionStatus = AppVersionStatuses::vstUndefined; 
+			LastVersionCheckTime = chrono::steady_clock::now();
+			LastUpgradeTime = LastVersionCheckTime;
+		};
 		AppInfo(wstring appName, wstring fullPath):AppInfo() { AppName = appName; FullPath = fullPath; };
 		wstring AppName;
 		wstring FullPath;
 		AppRunStatuses RunStatus;
-		AppVersionStatuses VersionStatus;		
+		AppVersionStatuses VersionStatus;	
+		steady_clock::time_point LastVersionCheckTime;
+		steady_clock::time_point LastUpgradeTime;
 	};
 
 	class AppManager

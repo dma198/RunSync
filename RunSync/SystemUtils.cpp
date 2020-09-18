@@ -11,6 +11,7 @@ using namespace RunSync;
 struct handle_data {
 	unsigned long process_id;
 	HWND window_handle;
+	bool only_visible;
 };
 
 #pragma region Public Methods
@@ -48,11 +49,15 @@ DWORD SystemUtils::GetPID(wstring exeFileFullName,bool excludeCurrent)
 	int pCnt = 0;
 	WCHAR fpath[MAX_PATH];
 
+	wstring tmp1(exeFileFullName);
+	transform(tmp1.begin(), tmp1.end(), tmp1.begin(), ::tolower);
+
 	for (size_t i = 0; i < pidsCnt; i++)
 	{
 		if (excludeCurrent && curPid == pids[i] || pids[i]==0)continue;
 	
-		HANDLE h = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, false, pids[i]);
+		HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pids[i]);
+
 		if (h != nullptr)
 		{
 			pCnt++;
@@ -60,9 +65,7 @@ DWORD SystemUtils::GetPID(wstring exeFileFullName,bool excludeCurrent)
 			ZeroMemory(fpath, MAX_PATH * sizeof(WCHAR));
 			if(GetModuleFileNameEx(h,NULL, fpath, MAX_PATH) > 0)			
 			{
-				wstring tmp1(exeFileFullName);
 				wstring tmp2(fpath);
-				transform(tmp1.begin(), tmp1.end(), tmp1.begin(), ::tolower);
 				transform(tmp2.begin(), tmp2.end(), tmp2.begin(), ::tolower);
 				if (tmp1 == tmp2)
 				{
@@ -82,11 +85,12 @@ DWORD SystemUtils::GetPID(wstring exeFileFullName,bool excludeCurrent)
 	return res;
 }
 
-HWND SystemUtils::GetMainWindow(unsigned long process_id)
+HWND SystemUtils::GetMainWindow(unsigned long process_id, bool only_visible)
 {
 	handle_data data;
 	data.process_id = process_id;
 	data.window_handle = 0;
+	data.only_visible = only_visible;
 	EnumWindows(EnumWindowsCallback, (LPARAM)&data);
 	return data.window_handle;
 }
@@ -150,9 +154,17 @@ bool SystemUtils::CreateLink(wstring exePath,wstring args,wstring lnkPath, wstri
 
 #pragma endregion
 
-BOOL SystemUtils::IsMainWindow(HWND handle)
+
+BOOL SystemUtils::IsMainWindow(HWND handle, bool only_visible)
 {
-    return GetWindow(handle, GW_OWNER) == (HWND)0;
+	if (only_visible && !IsWindowVisible(handle)) return FALSE;
+
+	if (GetWindow(handle, GW_OWNER) == (HWND)0)
+	{
+		return TRUE;
+	}
+
+	return FALSE;
 }
 
 BOOL CALLBACK SystemUtils::EnumWindowsCallback(HWND handle, LPARAM lParam)
@@ -160,10 +172,10 @@ BOOL CALLBACK SystemUtils::EnumWindowsCallback(HWND handle, LPARAM lParam)
     handle_data& data = *(handle_data*)lParam;
     unsigned long process_id = 0;
     GetWindowThreadProcessId(handle, &process_id);
-    if (data.process_id != process_id || !IsMainWindow(handle))
+    if (data.process_id != process_id || !IsMainWindow(handle, data.only_visible))
         return TRUE;
-    data.window_handle = handle;
-    return FALSE;
+	data.window_handle = handle;
+	return FALSE;
 }
 
 string SystemUtils::ToUTF8(const wstring& wstr)
@@ -232,4 +244,10 @@ PBYTE SystemUtils::HexToBin(wstring hex, size_t* size)
 		res[i] = (CHAR)d;
 	}
 	return res;
+}
+
+bool SystemUtils::EndsWith(wstring const& value, wstring const& ending)
+{
+	if (ending.size() > value.size()) return false;
+	return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }

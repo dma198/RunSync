@@ -1,6 +1,6 @@
 #include <future>
-#include <chrono>
 #include <mutex>
+#include <exception>
 #include <concurrent_queue.h>
 
 #include "AppConfig.h"
@@ -12,6 +12,7 @@
 
 
 using namespace RunSync;
+using namespace chrono;
 using namespace concurrency;
 
 
@@ -36,8 +37,6 @@ thread *trStatus;
 
 bool stop = false;
 shared_ptr<bool> stopShared(&stop);
-chrono::steady_clock::time_point lastVersionCheck = chrono::steady_clock::now();
-
 
 #pragma endregion
 
@@ -91,15 +90,15 @@ void AppManager::GetStatus()
 		}
 
 		auto now = chrono::steady_clock::now();
-		if (chrono::duration_cast<chrono::milliseconds>(now - lastVersionCheck).count() >= VERSION_CHECK_INTERVAL_MS)
+		for (auto ap = (*appsShared).begin(); ap != (*appsShared).end(); ap++)
 		{
-			for (auto ap = (*appsShared).begin(); ap != (*appsShared).end(); ap++)
+			if (duration_cast<milliseconds>(now - ap->LastVersionCheckTime).count() >= VERSION_CHECK_INTERVAL_MS && 
+				duration_cast<milliseconds>(now - ap->LastUpgradeTime).count() >= VERSION_CHECK_INTERVAL_MS)
 			{
 				ManageVersion(*ap);
+				ap->LastVersionCheckTime = chrono::steady_clock::now();
 			}
-			lastVersionCheck = chrono::steady_clock::now();
-		}
-
+		}			
 
 		if (changed)
 		{
@@ -123,16 +122,19 @@ bool AppManager::ManageVersion(AppInfo& app)
 		currentOperation = Operations::opCheckForUpdates;
 	}
 
+	OptionsDialog::setErrorMsg(L"");
+
 	SystemUtils::LoginToNetworkShared(AppConfig::getDst(), AppConfig::getSrcUser(), AppConfig::getSrcPassword());
 
 	auto lDir = filesystem::path(app.FullPath).parent_path();
 	auto lVerFile = lDir.append(VERSION_FILE);
 	auto rDir = filesystem::path(AppConfig::getSrc()).append(app.AppName);
-	auto rVerFile = rDir.append(VERSION_FILE);
+	auto rVerFile = rDir; rVerFile.append(VERSION_FILE);
 	if (!filesystem::exists(rDir)) // Source directory not found
 	{
 		app.VersionStatus = AppVersionStatuses::vstUndefined;
 		OptionsDialog::setErrorMsg(L"Source folder not found or not accessable!");
+		currentOperation = Operations::opNone;
 		return false; // No version management
 	}
 
@@ -140,10 +142,10 @@ bool AppManager::ManageVersion(AppInfo& app)
 	{
 		app.VersionStatus = AppVersionStatuses::vstUndefined;
 		OptionsDialog::setErrorMsg(L"Version file not found in source folder!");
+		currentOperation = Operations::opNone;
 		return false; // No version management
 	}
-
-	OptionsDialog::setErrorMsg(L"");
+	
 	try
 	{
 		auto hshLocal = Hash::getFileHash(lVerFile);
@@ -152,6 +154,7 @@ bool AppManager::ManageVersion(AppInfo& app)
 		{
 			app.VersionStatus = AppVersionStatuses::vstUndefined;
 			OptionsDialog::Update();
+			currentOperation = Operations::opNone;
 			return false; // No version management
 		}
 
@@ -169,7 +172,7 @@ bool AppManager::ManageVersion(AppInfo& app)
 	catch (...)
 	{
 		app.VersionStatus = AppVersionStatuses::vstUndefined;
-		OptionsDialog::setErrorMsg(L"Error happens when tried to check for new version");
+		OptionsDialog::setErrorMsg(L"Error happens when tried to check for new version");		
 	}
 	// Free operation
 	{
@@ -177,6 +180,8 @@ bool AppManager::ManageVersion(AppInfo& app)
 		if(currentOperation == Operations::opCheckForUpdates) 
 			currentOperation = Operations::opNone;
 	}
+
+	currentOperation = Operations::opNone;
 
 	return false;
 }
@@ -208,6 +213,22 @@ void AppManager::removeApp(wstring appName)
 		}
 
 	OptionsDialog::Update();
+}
+
+void DeleteDirectory(wstring& dpath)
+{
+	wstring tmp = dpath + L'\0';
+	SHFILEOPSTRUCT os = {
+		NULL,
+		FO_DELETE,
+		tmp.c_str(),
+		NULL,
+		FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION,
+		FALSE,
+		NULL,
+		NULL
+	};
+	SHFileOperation(&os);
 }
 
 void AppManager::UpgradeAppAsync(AppInfo& app)
@@ -266,35 +287,43 @@ void AppManager::UpgradeAppAsync(AppInfo& app)
 		try
 		{
 			auto srcHash = Hash::getDirectoryHash(src);
-			if (filesystem::exists(dstTmp)) filesystem::remove_all(dstTmp);
+			if (filesystem::exists(dstTmp))DeleteDirectory(dstTmp);
 			if (!filesystem::exists(AppConfig::getDst()))
 				filesystem::create_directory(AppConfig::getDst());
 			filesystem::copy(src.c_str(), dstTmp.c_str(), filesystem::copy_options::recursive);
 			auto dstHash = Hash::getDirectoryHash(dstTmp);
 			if (dstHash == srcHash)
 			{
-				if (filesystem::exists(dst)) filesystem::remove_all(dst);
+				if (filesystem::exists(dst)) DeleteDirectory(dst);
 				filesystem::rename(dstTmp, dst);
 				app.VersionStatus = AppVersionStatuses::vstUpToDate;
 			}
 			else
-				filesystem::remove_all(dstTmp);
+				DeleteDirectory(dstTmp);
 
 			app.RunStatus = AppRunStatuses::rstStopped;
 			OptionsDialog::Update();
 
 		}
-		catch (...) {}
-
+		catch (exception& ex) 
 		{
+			string msg1(ex.what());
+			wstring msg(msg1.begin(),msg1.end());
+			OptionsDialog::setErrorMsg(msg);
 			lock_guard lock(mtxCurrentOperation);
-			currentOperation = Operations::opNone;
 		}
+
+		if (filesystem::exists(dstTmp))DeleteDirectory(dstTmp);
+
+		app.LastUpgradeTime = chrono::steady_clock::now();
+		currentOperation = Operations::opNone;
+
 
 		if (pid > 0)
 		{
 			AppStart(app.AppName, ShowCmd);
 		}
+
 
 		}).detach();
 }
@@ -344,13 +373,20 @@ void AppManager::InstallAppAsync(AppInfo& app)
 				if (dstHash == srcHash)
 				{
 					filesystem::rename(dstTmp, dst);
-
-					// Create desktop shortcut				
-					wstring sht = SystemUtils::GetDesktopPath() + FS + app.AppName + L".lnk";
-					if (!filesystem::exists(sht))
+					auto renameSuccess = !filesystem::exists(dstTmp);
+					if (renameSuccess)
 					{
-						wstring cmd = SystemUtils::GetRunningInstanceFileName();
-						SystemUtils::CreateLink(cmd, app.AppName, sht, app.AppName);
+						// Create desktop shortcut				
+						wstring sht = SystemUtils::GetDesktopPath() + FS + app.AppName + L".lnk";
+						if (!filesystem::exists(sht))
+						{
+							wstring cmd = SystemUtils::GetRunningInstanceFileName();
+							SystemUtils::CreateLink(cmd, app.AppName, sht, app.AppName);
+						}
+					}
+					else
+					{
+						filesystem::remove_all(dstTmp); // fails rename
 					}
 
 					{
@@ -380,6 +416,8 @@ void AppManager::InstallAppAsync(AppInfo& app)
 			app.RunStatus = AppRunStatuses::rstNotInstalled;
 			currentOperation = Operations::opNone;
 		}
+		
+		app.LastUpgradeTime = chrono::steady_clock::now();
 
 		if (toBeRemoved)
 		{

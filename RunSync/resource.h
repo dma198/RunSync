@@ -4,7 +4,7 @@
 //
 #define IDC_MYICON                      2
 #define IDABOUT                         3
-#define IDD_RUNSYNC_DIALOG              102
+#define IDD_RunSync_DIALOG              102
 #define IDS_APP_TITLE                   103
 #define IDD_ABOUTBOX                    103
 #define IDM_ABOUT                       104
@@ -22,12 +22,13 @@
 #define IDEXIT                          1004
 #define IDC_APPSLIST                    1005
 #define IDC_ERRORMSG                    1006
+#define IDC_ERRORMSG3                   1006
 #define IDC_COMBO2                      1008
 #define IDC_APPNAME                     1008
 #define IDILOGO                         1010
-#define IDC_EDIT2                       1011
 #define IDC_USER                        1011
 #define IDC_PASSWD                      1012
+#define IDC_EDIT2                       1013
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -37,7 +38,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        132
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1012
+#define _APS_NEXT_CONTROL_VALUE         1014
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

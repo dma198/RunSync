@@ -33,7 +33,7 @@ bool OptionsDialog::IsActive()
 void OptionsDialog::Update()
 {
     if (hWndOptionsDialog > 0)
-        SendMessage(hWndOptionsDialog, WM_RUNSYNC_OPTIONS_UPDATE, 0, 0);
+        SendMessage(hWndOptionsDialog, WM_RunSync_OPTIONS_UPDATE, 0, 0);
 }
 
 
@@ -116,7 +116,11 @@ void OptionsDialog::LoadData(HWND hwnd)
     }
 
     SetDlgItemText(hwnd, IDC_ERRORMSG, errMsg.c_str());
-
+    auto hErr = GetDlgItem(hwnd, IDC_ERRORMSG);
+    GetClientRect(hErr, &r);
+    InvalidateRect(hErr, &r, TRUE);
+    MapWindowPoints(hErr, hwnd, (POINT*)&r, 2);
+    RedrawWindow(hwnd, &r, NULL, RDW_ERASE | RDW_INVALIDATE);
 }
 
 
@@ -173,7 +177,7 @@ INT_PTR OptionsDialog::OptionsDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LP
     }
     break;
 
-    case WM_RUNSYNC_OPTIONS_UPDATE:
+    case WM_RunSync_OPTIONS_UPDATE:
         LoadData(hwnd);
         break;
 

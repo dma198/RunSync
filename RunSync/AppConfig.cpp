@@ -15,7 +15,7 @@ using namespace std;
 using namespace RunSync;
 
 
-auto const sKey = L"SOFTWARE\\RunSync";
+auto const sKey = L"SOFTWARE\\Danieli Automation\\RunSync";
 wstring const vSrc = L"AppsSrc";
 wstring const vDst = L"AppsDst";
 wstring const vSrcUser = L"SrcUser";
